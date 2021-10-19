@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:collection/collection.dart';
 import 'package:dbus/dbus.dart';
@@ -346,6 +347,13 @@ class FwupdRemote {
       "FwupdRemote(age: $age, agreement: '$agreement', approvalRequired: $approvalRequired, automaticReports: $automaticReports, automaticSecurityReports: $automaticSecurityReports, checksum: '$checksum', enabled: $enabled, filenameCache: '$filenameCache', filenameCacheSig: '$filenameCacheSig', filenameSource: '$filenameSource', firmwareBaseUri: '$firmwareBaseUri', id: '$id', keyringKind: $keyringKind, kind: $kind, metadataUri: '$metadataUri', password: '${password?.replaceAll(RegExp('.'), '*')}', priority: $priority, remotesDir: '$remotesDir', reportUri: '$reportUri', securityReportUri: '$securityReportUri', title: '$title', username: '$username')";
 }
 
+class FwupdDetails {
+  FwupdDetails();
+
+  @override
+  String toString() => 'FwupdDetails()';
+}
+
 /// A client that connects to fwupd.
 class FwupdClient {
   /// The bus this client is connected to.
@@ -479,7 +487,18 @@ class FwupdClient {
         .toList();
   }
 
-  // FIXME: 'GetDetails'
+  /// Get details about a local firmware file.
+  Future<List<FwupdDetails>> getDetails(ResourceHandle handle) async {
+    var response = await _root.callMethod(
+        'org.freedesktop.fwupd', 'GetDetails', [DBusUnixFd(handle)],
+        replySignature: DBusSignature('aa{sv}'));
+    return (response.returnValues[0] as DBusArray)
+        .children
+        .map((child) => (child as DBusDict).children.map((key, value) =>
+            MapEntry((key as DBusString).value, (value as DBusVariant).value)))
+        .map((properties) => _parseDetails(properties))
+        .toList();
+  }
 
   // FIXME: 'GetHistory'
 
@@ -487,7 +506,13 @@ class FwupdClient {
 
   // FIXME: 'GetReportMetadata'
 
-  // FIXME: 'Install'
+  /// Schedule a firmware to be installed.
+  Future<void> install(String id, ResourceHandle handle) async {
+    var options = DBusDict.stringVariant({}); // FIXME
+    await _root.callMethod('org.freedesktop.fwupd', 'Install',
+        [DBusString(id), DBusUnixFd(handle), options],
+        replySignature: DBusSignature(''));
+  }
 
   /// Verify firmware on a device.
   Future<void> verify(String id) async {
@@ -551,7 +576,13 @@ class FwupdClient {
 
   // FIXME: 'ModifyConfig'
 
-  // FIXME: 'UpdateMetadata'
+  // Add AppStream resource information from a session client.
+  Future<void> updateMetadata(
+      String remoteId, ResourceHandle data, ResourceHandle signature) async {
+    await _root.callMethod('org.freedesktop.fwupd', 'UpdateMetadata',
+        [DBusString(remoteId), DBusUnixFd(data), DBusUnixFd(signature)],
+        replySignature: DBusSignature(''));
+  }
 
   // FIXME: 'ModifyRemote'
 
@@ -700,5 +731,10 @@ class FwupdClient {
       title: (properties['Title'] as DBusString?)?.value,
       username: (properties['Username'] as DBusString?)?.value,
     );
+  }
+
+  FwupdDetails _parseDetails(Map<String, DBusValue> properties) {
+    // FIXME
+    return FwupdDetails();
   }
 }
